@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+	body,html{height:100vh;width:100vw;max-height:100vh;max-width:100vw;padding:0;margin:0;font-family:sans-serif;overflow:hidden;position:relative;background:url(img/logo.svg) center center/40% no-repeat black;display:flex;justify-content:center;}
+    iframe[src*=google]{width:100vw;height:100vh;border:0}
+    #offline{position:fixed;right:0;top:0;background:black;color:white;padding:.5em 1em;font-size:.5em;border:1px solid white;border-top:0;border-right:0}
+    #offline span{display:inline-block;height:100%}
+    #offline #icon{float:left;padding:.25em .5em .25em 0;font-size:1.5em}
+    #screensaver{width:100%;height:100%;background:black}
+  </style>
+  <script>
+    // Set variables
+    // let directoryDataURL    = "https://ugacoe.wpcomstaging.com/wp-json/custom-routes/v1/directory-signs"
+    let directoryDataURL    = "https://ugacoe.wpcomstaging.com/directory-signs-dark-mode.json"
+    let announcementDataURL = "https://ugacoe.wpcomstaging.com/wp-json/custom-routes/v1/announcement-slides"
+    let wxBugLatLon         = "33.941554,-83.373070"
+    let screenSaverStart    = "21:00"
+    let screenSaverEnd      = "7:00"
+    let now                 = new Date()
+
+    let params    = new URLSearchParams(window.location.search.substring(1))
+    let pauseTime = (params.get('preview') ? 1000 : 12000)
+    let slideID   = params.get('slug') || false
+    let videoID   = params.get('youtube') || false
+    // Show a YouTube video
+    if (videoID) {
+      function docReady(fn) {
+        if (document.readyState === "complete" || document.readyState === "interactive"){ setTimeout(fn, 1) }
+        else { document.addEventListener("DOMContentLoaded", fn) }
+      }
+      docReady(function() {
+        document.body.innerHTML = `
+          <iframe width="1920" height="1080"
+          src="https://www.youtube-nocookie.com/embed/${videoID}?autoplay=1&mute=1&modestbranding=1&rel=0&cc_load_policy=1&showinfo=0&disablekb=1&hd=1&autohide=1&controls=2&loop=1&playlist=${videoID}"
+          frameborder="0" allow="loop; autoplay; encrypted-media" allowfullscreen></iframe>`
+      });
+    // Show a Directory sign
+    } else if (slideID || params.get('slide_URL')) {
+      // Get exteral JSON data
+      fetch(directoryDataURL)
+        .then(r => r.json())
+        .then(json => {
+          var slideObj = json[0].directory_signs.filter(slide => {
+            return slide.slug == slideID
+          })[0]
+          if (slideObj['screensaver'])
+            // Show screensaver IF this sign uses one AND the current time is within range
+            screenSaverStart = new Date(now.toDateString() + ' ' + screenSaverStart)
+            screenSaverEnd   = new Date(now.toDateString() + ' ' + screenSaverEnd)
+            if (screenSaverEnd > now || screenSaverStart <= now) {
+              document.body.innerHTML += `
+                <div id='screensaver'>
+                  <marquee direction='down' behavior='alternate' width='${window.innerWidth}' height='${window.innerHeight}'>
+                    <marquee behavior='alternate'><img src='img/logo.svg'></marquee>
+                  </marquee>
+                </div>`
+              return
+            }
+          // Create and render Google Slide iframe
+          let iframe     = document.createElement('iframe')
+          iframe.src     = params.get('slide_URL') || slideObj['slide_url']
+          document.title = slideObj['area']
+          document.body.appendChild(iframe)
+
+          // Show weather bug if this sign uses one
+          if (slideObj['weather'] || params.get('wx')) {
+            let wxBugCSS = document.createElement('link')
+                wxBugCSS.setAttribute('rel','stylesheet')
+                wxBugCSS.href = 'https://ds.coe.uga.edu/css/wx-bug.min.css'
+                document.head.appendChild(wxBugCSS)
+            let wxBugJS = document.createElement('script')
+                wxBugJS.innerHTML = "!function(d,s,id){var js,fjs=d.getElementsByTagName(s)[0];if(!d.getElementById(id)){js=d.createElement(s);js.id=id;js.src='https://weatherwidget.io/js/widget.min.js';fjs.parentNode.insertBefore(js,fjs);}}(document,'script','weatherwidget-io-js')"
+            document.body.innerHTML += `
+              <div id='wx-bug'>
+                <a class="weatherwidget-io" href="https://forecast7.com/en/33d95n83d37/30602/?unit=us" data-font="Roboto" data-icons="Climacons Animated" data-days="3" data-theme="dark" data-basecolor="rgba(0,0,0,0)" data-accent="" data-accent="" data-shadow=""></a>
+              </div>`
+            document.body.appendChild(wxBugJS)
+          }
+        })
+        .catch(error => console.error(error))
+
+    // Show Announcements
+    } else {
+      // window.location = "/?youtube=Aa0rCxoasd4"
+      let sliderFrame  = document.createElement('div')
+          sliderFrame.setAttribute('id','slider-frame')
+      let slider       = document.createElement('div')
+          slider.setAttribute('id','slider')
+      // Get exteral JSON data
+      fetch(announcementDataURL)
+        .then(r => r.json())
+        .then(json => {
+          document.title = 'Announcements'
+          let timerBugCSS       = document.createElement('link')
+              timerBugCSS.setAttribute('rel','stylesheet')
+              timerBugCSS.href  = 'https://ds.coe.uga.edu/css/timer-bug.min.css'
+          let sliderCSS         = document.createElement('link')
+              sliderCSS.setAttribute('rel','stylesheet')
+              sliderCSS.href    = 'https://ds.coe.uga.edu/css/slider.min.css'
+          let sliderJS          = document.createElement('script')
+              sliderJS.src      = 'https://ds.coe.uga.edu/js/slider.js'
+          document.head.appendChild(sliderCSS)
+          document.body.appendChild(sliderFrame)
+          sliderFrame.appendChild(slider)
+          var image = null
+          json[0].slides.forEach(slide => {
+            slide_start_date = new Date(slide.start_date)
+            slide_end_date   = new Date(slide.end_date)
+            if ((slide_start_date <= now) && (slide_end_date > now)) {
+              image     = document.createElement('img')
+              image.src = slide['image']
+              slider.appendChild(image)
+            }
+          })
+          document.body.innerHTML += `
+            <div id='timer-bug'>
+              <div id='count'><span id='current'>1</span><span id='total'>/1</span></div>
+              <div class='loader'>
+                <svg class='circular-loader' viewBox='25 25 50 50'><circle id='the-circle' class='loader-path' cx='50' cy='50' r='20' fill='none' stroke='#4885ed' stroke-width='5' />
+              </div>
+            </div>`
+          document.head.appendChild(timerBugCSS)
+          document.head.appendChild(sliderJS)
+        })
+        .catch(error => console.error(error))
+    }
+    let pingJS    = document.createElement('script')
+    pingJS.src    = 'https://ds.coe.uga.edu/js/ping.js'
+    let refreshJS = document.createElement('script')
+    refreshJS.src = 'https://ds.coe.uga.edu/js/refresh.js'
+    document.head.appendChild(pingJS)
+    document.head.appendChild(refreshJS)
+  </script>
+</head>
+<body></body>
+</html>
